@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QMenuBar, QMenu, QDialog, QListWidget, QHBoxLayout, QTextEdit, QLabel, QLineEdit
 )
 from PyQt6.QtGui import QAction, QTextCursor
-from PyQt6.QtCore import Qt, QPoint
+from PyQt6.QtCore import Qt, QPoint, QRect
 from functools import partial
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -80,14 +80,13 @@ class OverlayWindow(QMainWindow):
         self.setStyleSheet("background-color: rgba(0, 0, 0, 150); border-radius: 10px;")
         self.setGeometry(100, 100, 800, 600)
 
-        # Variable for dragging the window
+        # Variables for dragging and resizing
         self._drag_active = False
         self._drag_position = QPoint()
-
-        # Enable resizing variables
         self._resizing = False
         self._resize_margin = 8
         self._resize_direction = None
+        self._initial_geometry = None
 
         # Minimum size for resizing
         self.setMinimumSize(400, 300)
@@ -142,10 +141,83 @@ class OverlayWindow(QMainWindow):
 
         self.start_file_watcher()
 
+    ### Moving and Resizing ###
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            if self.is_on_resize_edge(event.pos()) and not self.is_on_left_edge(event.pos()):
+                self._resizing = True
+                self._resize_direction = self.get_resize_direction(event.pos())
+                self._initial_geometry = self.geometry()
+                self._drag_position = event.globalPosition().toPoint()
+            else:
+                self._drag_active = True
+                self._drag_position = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if self._resizing:
+            delta = event.globalPosition().toPoint() - self._drag_position
+            rect = QRect(self._initial_geometry)
+            if "Right" in self._resize_direction:
+                rect.setRight(rect.right() + delta.x())
+            if "Bottom" in self._resize_direction:
+                rect.setBottom(rect.bottom() + delta.y())
+            if "Left" in self._resize_direction:
+                rect.setLeft(rect.left() + delta.x())
+            if "Top" in self._resize_direction:
+                rect.setTop(rect.top() + delta.y())
+            if rect.width() >= self.minimumWidth() and rect.height() >= self.minimumHeight():
+                self.setGeometry(rect)
+        elif self._drag_active:
+            self.move(event.globalPosition().toPoint() - self._drag_position)
+        elif self.is_on_resize_edge(event.pos()) and not self.is_on_left_edge(event.pos()):
+            self.setCursor(self.get_resize_cursor(event.pos()))
+        else:
+            self.unsetCursor()
+
+    def mouseReleaseEvent(self, event):
+        self._drag_active = False
+        self._resizing = False
+        event.accept()
+
+    def is_on_resize_edge(self, pos):
+        rect = self.rect()
+        return (pos.x() >= rect.width() - self._resize_margin or
+                pos.y() >= rect.height() - self._resize_margin or
+                pos.x() <= self._resize_margin or
+                pos.y() <= self._resize_margin)
+
+    def is_on_left_edge(self, pos):
+        # Check if the position is within the left edge but not resizing
+        return pos.x() <= self._resize_margin
+
+    def get_resize_direction(self, pos):
+        rect = self.rect()
+        direction = ""
+        if pos.x() >= rect.width() - self._resize_margin:
+            direction += "Right"
+        if pos.y() >= rect.height() - self._resize_margin:
+            direction += "Bottom"
+        if pos.x() <= self._resize_margin and not self.is_on_left_edge(pos):
+            direction += "Left"
+        if pos.y() <= self._resize_margin:
+            direction += "Top"
+        return direction
+
+    def get_resize_cursor(self, pos):
+        direction = self.get_resize_direction(pos)
+        if direction in ("RightBottom", "LeftTop"):
+            return Qt.CursorShape.SizeFDiagCursor
+        elif direction in ("RightTop", "LeftBottom"):
+            return Qt.CursorShape.SizeBDiagCursor
+        elif "Right" in direction or "Left" in direction:
+            return Qt.CursorShape.SizeHorCursor
+        elif "Top" in direction or "Bottom" in direction:
+            return Qt.CursorShape.SizeVerCursor
+        return Qt.CursorShape.ArrowCursor
+
+    ### Existing Functionalities ###
     def open_donate_link(self):
-        """
-        Opens the donation link in the default web browser.
-        """
         webbrowser.open("https://paypal.me/hayesjl77?country.x=US&locale.x=en_US")
 
     def create_all_tag_sections(self):
@@ -161,12 +233,10 @@ class OverlayWindow(QMainWindow):
     def create_scrollable_section(self, tag):
         container = QWidget()
         container_layout = QVBoxLayout(container)
-
         title = QPushButton(f"[{tag}] Logs (Click to Clear)")
         title.setStyleSheet(f"color: {self.tag_colors.get(tag, 'white')}; font-weight: bold;")
         title.clicked.connect(partial(self.clear_logs, tag))
         container_layout.addWidget(title)
-
         text_edit = QTextEdit()
         text_edit.setReadOnly(True)
         text_edit.setStyleSheet("""
@@ -176,7 +246,6 @@ class OverlayWindow(QMainWindow):
             font-weight: bold;
         """)
         container_layout.addWidget(text_edit)
-
         return text_edit, container
 
     def update_log_section(self, tag, message):
@@ -217,12 +286,6 @@ class OverlayWindow(QMainWindow):
             self.remove_tag_section(tag)
         for tag in new_tags - current_tags:
             self.add_tag_section(tag)
-
-    def add_new_tag_and_update(self, tag_name):
-        if self.log_monitor:
-            self.log_monitor.tags.append(tag_name)
-            self.log_monitor.reparse_log_file(tag_name)
-        self.add_tag_section(tag_name)
 
     def remove_tag_section(self, tag):
         if tag in self.log_sections:
