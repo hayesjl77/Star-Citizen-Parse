@@ -10,6 +10,7 @@ from PyQt6.QtCore import Qt, QPoint, QRect
 from functools import partial
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+import keyboard  # Global hotkey library
 
 
 # LogFileMonitor Class: Tracks file changes and processes logs
@@ -140,6 +141,36 @@ class OverlayWindow(QMainWindow):
         donate_menu.addAction(donate_action)
 
         self.start_file_watcher()
+
+        # Start global hotkey listener
+        self.setup_hotkey()
+
+    def setup_hotkey(self):
+        """
+        Setup the global hotkey using the `keyboard` library.
+        Pressing Shift + F1 will toggle the visibility of the window without requiring admin privileges.
+        """
+        # Register a global hotkey: Shift + F1
+        keyboard.add_hotkey("shift+f1", self.toggle_visibility)
+
+    def toggle_visibility(self):
+        """
+        Toggles the visibility of the application window.
+        """
+        if self.isVisible():
+            print("Hiding the window.")
+            self.hide()
+        else:
+            print("Showing the window.")
+            self.show()
+
+    def close_application(self):
+        """
+        Cleanly stop the application and clear keyboard hooks.
+        """
+        # Unregister all hotkeys when the app exits
+        keyboard.unhook_all()
+        QApplication.quit()
 
     ### Moving and Resizing ###
     def mousePressEvent(self, event):
