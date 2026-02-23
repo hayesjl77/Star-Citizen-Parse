@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Squig-AI (squig-ai.com) — MIT License
+# See LICENSE file for details.
 """
-Star Citizen Parse — Transparent In-Game Overlay
+Squig-AI SC Parse — Transparent In-Game Overlay
 ================================================
 The only true transparent overlay for Star Citizen kill/death feed.
 Runs on top of the game, auto-detects your log file, and shows
@@ -12,7 +14,7 @@ Usage:
     python main.py --log PATH   # Specify a Game.log path
     python main.py --reset      # Reset config to defaults
 
-Author: github.com/hayesjl77
+Author: Squig-AI (squig-ai.com) — github.com/hayesjl77
 """
 
 import sys
@@ -32,7 +34,7 @@ from src.config import Config, CONFIG_FILE
 def cli():
     parser = argparse.ArgumentParser(
         prog="sc-parse",
-        description="Star Citizen Parse — Transparent overlay kill/death feed",
+        description="Squig-AI SC Parse — Transparent overlay kill/death feed",
     )
     parser.add_argument(
         "--log", "-l",
@@ -55,9 +57,9 @@ def cli():
     if args.reset:
         if os.path.exists(CONFIG_FILE):
             os.remove(CONFIG_FILE)
-            print("[SC Parse] Config reset to defaults.")
+            print("[Squig-AI] Config reset to defaults.")
         else:
-            print("[SC Parse] No config file to reset.")
+            print("[Squig-AI] No config file to reset.")
         if not args.log:
             return
 

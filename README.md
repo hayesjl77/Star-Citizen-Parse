@@ -1,12 +1,14 @@
-# Star Citizen Parse
+# Squig-AI SC Parse
 
 > **The only true transparent in-game overlay for Star Citizen combat events.**
+> Built by [Squig-AI](https://squig-ai.com) — built by gamers, for gamers.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![PyQt6](https://img.shields.io/badge/PyQt6-Overlay-41CD52?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
+![Squig-AI](https://img.shields.io/badge/Squig--AI-🟣-8b5cf6?style=flat-square)
 
-SC Parse sits on top of your game as a sleek, transparent overlay — showing kills, deaths, vehicle destructions, quantum jumps, and session stats in real time. No alt-tabbing, no second monitor required.
+Squig-AI SC Parse sits on top of your game as a sleek, transparent overlay — showing kills, deaths, vehicle destructions, quantum jumps, and session stats in real time. No alt-tabbing, no second monitor required.
 
 ---
 

@@ -1,5 +1,7 @@
+# Copyright (c) 2026 Squig-AI (squig-ai.com) — MIT License
+# See LICENSE file for details.
 """
-Configuration management for Star Citizen Parse.
+Configuration management for Squig-AI SC Parse.
 Persists settings to JSON file alongside the executable.
 """
 

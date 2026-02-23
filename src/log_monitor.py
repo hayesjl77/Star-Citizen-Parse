@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Squig-AI (squig-ai.com) — MIT License
+# See LICENSE file for details.
 """
 Real-time log file monitor using QFileSystemWatcher + polling fallback.
 Emits new lines via Qt signals for thread-safe UI updates.

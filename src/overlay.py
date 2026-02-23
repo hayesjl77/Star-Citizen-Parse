@@ -1,5 +1,7 @@
+# Copyright (c) 2026 Squig-AI (squig-ai.com) — MIT License
+# See LICENSE file for details.
 """
-Star Citizen Parse — Transparent in-game overlay.
+Squig-AI SC Parse — Transparent in-game overlay.
 Shows a live kill/death feed, session stats, and event log on top of the game.
 """
 
@@ -118,7 +120,7 @@ class SettingsDialog(QDialog):
     def __init__(self, config: Config, parent=None):
         super().__init__(parent)
         self.config = config
-        self.setWindowTitle("SC Parse Settings")
+        self.setWindowTitle("Squig-AI SC Parse — Settings")
         self.setFixedWidth(400)
         self.setStyleSheet("""
             QDialog { background-color: #1a1a2e; color: #ffffff; }
@@ -267,7 +269,7 @@ class OverlayWindow(QMainWindow):
         title_layout = QHBoxLayout(title_bar)
         title_layout.setContentsMargins(10, 0, 6, 0)
 
-        self.title_label = QLabel("SC PARSE")
+        self.title_label = QLabel("SQUIG-AI  SC PARSE")
         self.title_label.setObjectName("title_text")
         title_layout.addWidget(self.title_label)
 
@@ -487,7 +489,7 @@ class OverlayWindow(QMainWindow):
         painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, "S")
         painter.end()
         self.tray_icon.setIcon(QIcon(pixmap))
-        self.tray_icon.setToolTip("SC Parse — Right-click to unghost")
+        self.tray_icon.setToolTip("Squig-AI SC Parse — Right-click to unghost")
 
         tray_menu = QMenu()
         tray_menu.setStyleSheet("""
@@ -608,7 +610,7 @@ class OverlayWindow(QMainWindow):
             self._add_system_message("   Click the  S  tray icon or right-click it to unghost")
             # Flash the tray icon so user knows where to find it
             self.tray_icon.showMessage(
-                "SC Parse — Ghost Mode",
+                "Squig-AI SC Parse — Ghost Mode",
                 "Click this tray icon or right-click → Disable Click-Through to get control back.",
                 QSystemTrayIcon.MessageIcon.Information,
                 5000,
@@ -636,23 +638,126 @@ class OverlayWindow(QMainWindow):
     def _show_help(self):
         """Show keyboard shortcuts help overlay."""
         help_text = (
-            "╔══════════════════════════════════╗\n"
-            "║    SC PARSE — KEYBOARD SHORTCUTS  ║\n"
-            "╠══════════════════════════════════╣\n"
-            "║  Shift+F1      Toggle overlay    ║\n"
-            "║  Ctrl+,        Open settings     ║\n"
-            "║  Ctrl+O        Open log file     ║\n"
-            "║  Ctrl+L        Lock/unlock pos   ║\n"
-            "║  Ctrl+P        Click-through     ║\n"
-            "║  Ctrl+K        Clear feed        ║\n"
-            "║  Ctrl+R        Reprocess log     ║\n"
-            "║  Ctrl+↑/↓      Adjust opacity    ║\n"
-            "║  Ctrl+Shift+↑/↓ Adjust font     ║\n"
-            "║  Escape        Minimize          ║\n"
-            "║  Right-click   Context menu      ║\n"
-            "╚══════════════════════════════════╝"
+            "╔═════════════════════════════════════════════╗\n"
+            "║   SQUIG-AI SC PARSE — KEYBOARD SHORTCUTS    ║\n"
+            "╠═════════════════════════════════════════════╣\n"
+            "║  Shift+F1          Toggle overlay           ║\n"
+            "║  Ctrl+,            Open settings            ║\n"
+            "║  Ctrl+O            Open log file            ║\n"
+            "║  Ctrl+L            Lock/unlock position     ║\n"
+            "║  Ctrl+P            Click-through mode       ║\n"
+            "║  Ctrl+K            Clear feed               ║\n"
+            "║  Ctrl+R            Reprocess log            ║\n"
+            "║  Ctrl+↑/↓          Adjust opacity           ║\n"
+            "║  Ctrl+Shift+↑/↓    Adjust font size        ║\n"
+            "║  Escape            Minimize                 ║\n"
+            "║  Right-click       Context menu             ║\n"
+            "╚═════════════════════════════════════════════╝"
         )
         self._add_system_message(help_text)
+
+    def _show_about(self):
+        """Show the Squig-AI About dialog."""
+        about = QDialog(self)
+        about.setWindowTitle("About Squig-AI SC Parse")
+        about.setFixedSize(420, 380)
+        about.setStyleSheet("""
+            QDialog {
+                background: #0d0d1a;
+                border: 2px solid #8b5cf6;
+                border-radius: 8px;
+            }
+            QLabel { color: #e0e0e0; }
+            QPushButton {
+                background: #8b5cf6; color: white; border: none;
+                border-radius: 4px; padding: 6px 20px; font-weight: bold;
+            }
+            QPushButton:hover { background: #7c3aed; }
+        """)
+
+        layout = QVBoxLayout(about)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(8)
+
+        # Logo / brand
+        brand = QLabel("SQUIG-AI")
+        brand.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        brand.setStyleSheet("font-size: 28px; font-weight: bold; color: #8b5cf6; letter-spacing: 4px;")
+        layout.addWidget(brand)
+
+        app_name = QLabel("SC Parse")
+        app_name.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        app_name.setStyleSheet("font-size: 16px; color: #a78bfa; margin-bottom: 6px;")
+        layout.addWidget(app_name)
+
+        # Version
+        version = QLabel("v2.0.0")
+        version.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        version.setStyleSheet("font-size: 11px; color: #666;")
+        layout.addWidget(version)
+
+        # Separator
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setStyleSheet("background: #333; max-height: 1px; margin: 8px 0;")
+        layout.addWidget(sep)
+
+        # Description
+        desc = QLabel(
+            "The only true transparent in-game overlay for\n"
+            "Star Citizen combat events.\n\n"
+            "Real-time kill feed, session stats, PvP/PvE detection,\n"
+            "auto-detect, and 12 keyboard shortcuts — all in a\n"
+            "sleek overlay that sits on top of your game."
+        )
+        desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        desc.setWordWrap(True)
+        desc.setStyleSheet("font-size: 12px; line-height: 1.4; color: #ccc;")
+        layout.addWidget(desc)
+
+        layout.addSpacing(6)
+
+        # Website link
+        site = QLabel('<a href="https://squig-ai.com" style="color: #8b5cf6; text-decoration: none;">squig-ai.com</a>')
+        site.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        site.setOpenExternalLinks(True)
+        site.setStyleSheet("font-size: 13px;")
+        layout.addWidget(site)
+
+        # GitHub link
+        gh = QLabel('<a href="https://github.com/hayesjl77/Star-Citizen-Parse" style="color: #8b5cf6; text-decoration: none;">GitHub: hayesjl77/Star-Citizen-Parse</a>')
+        gh.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        gh.setOpenExternalLinks(True)
+        gh.setStyleSheet("font-size: 11px;")
+        layout.addWidget(gh)
+
+        layout.addSpacing(4)
+
+        # Tagline
+        tagline = QLabel("Built by gamers, for gamers.")
+        tagline.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        tagline.setStyleSheet("font-size: 11px; color: #8b5cf6; font-style: italic;")
+        layout.addWidget(tagline)
+
+        # Copyright
+        copy_lbl = QLabel("© 2026 Squig-AI — MIT License")
+        copy_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        copy_lbl.setStyleSheet("font-size: 10px; color: #555;")
+        layout.addWidget(copy_lbl)
+
+        layout.addSpacing(8)
+
+        # Close button
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(about.accept)
+        close_btn.setFixedWidth(100)
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        btn_layout.addWidget(close_btn)
+        btn_layout.addStretch()
+        layout.addLayout(btn_layout)
+
+        about.exec()
 
     def _auto_start(self):
         """Auto-detect log file or use saved path."""
@@ -868,6 +973,10 @@ class OverlayWindow(QMainWindow):
         help_action = menu.addAction("❓  Keyboard Shortcuts       Ctrl+H")
         help_action.triggered.connect(self._show_help)
 
+        # About
+        about_action = menu.addAction("💜  About Squig-AI")
+        about_action.triggered.connect(self._show_about)
+
         menu.addSeparator()
 
         # Quit
@@ -1039,7 +1148,7 @@ class OverlayWindow(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
-    app.setApplicationName("SC Parse")
+    app.setApplicationName("Squig-AI SC Parse")
     app.setApplicationDisplayName("Star Citizen Parse")
 
     config = Config.load()

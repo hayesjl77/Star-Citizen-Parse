@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Squig-AI (squig-ai.com) — MIT License
+# See LICENSE file for details.
 """
 Star Citizen Game.log event parser.
 Extracts structured combat events from raw log lines using regex patterns.

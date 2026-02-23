@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Squig-AI (squig-ai.com) — MIT License
+# See LICENSE file for details.
 """
 Auto-detect Star Citizen Game.log across all drives and common install paths.
 Supports LIVE, PTU, EPTU environments.
