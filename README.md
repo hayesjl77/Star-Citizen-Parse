@@ -19,6 +19,9 @@ SC Parse sits on top of your game as a sleek, transparent overlay — showing ki
 - **Live Session Stats** — kills, deaths, PvE count, and K/D ratio updated in real time
 - **Color-Coded Feed** — red for PvP kills, green for PvE, orange for deaths, cyan for jumps, etc.
 - **Drag & Resize** — move and resize the overlay window to fit your setup
+- **Lock Mode** — lock position to prevent accidental moves during combat (`Ctrl+L`)
+- **Click-Through Mode** — overlay passes mouse input to the game underneath (`Ctrl+P` / `Shift+F2`)
+- **12 Keyboard Shortcuts** — quick-adjust opacity, font, toggle settings, clear feed — all without opening menus
 - **Configurable Filters** — toggle which event types to show (kills, deaths, jumps, corpses, etc.)
 - **Settings Dialog** — adjust opacity, font size, player name, and filters without editing files
 - **Global Hotkey** — press `Shift+F1` to toggle the overlay on/off in-game
@@ -100,6 +103,34 @@ Right-click the overlay → **Settings** to configure:
 - **Event Filters** — choose which event types appear in the feed
 
 Settings are saved to `sc_parse_config.json` automatically.
+
+## Keyboard Shortcuts
+
+All in-app shortcuts work without root access. Global hotkeys (Shift+F1/F2) require the `keyboard` module and root on Linux.
+
+| Shortcut | Action |
+|----------|--------|
+| `Shift+F1` | Toggle overlay visibility (global) |
+| `Shift+F2` | Toggle click-through mode (global) |
+| `Ctrl+,` | Open settings dialog |
+| `Ctrl+O` | Open log file |
+| `Ctrl+L` | Lock/unlock overlay position |
+| `Ctrl+P` | Toggle click-through mode |
+| `Ctrl+K` | Clear feed |
+| `Ctrl+R` | Reprocess log from beginning |
+| `Ctrl+H` | Show keyboard shortcuts |
+| `Ctrl+↑/↓` | Adjust opacity |
+| `Ctrl+Shift+↑/↓` | Adjust font size |
+| `Escape` | Minimize overlay |
+| Right-click | Context menu |
+
+### Click-Through Mode
+
+Press `Ctrl+P` or `Shift+F2` to enable click-through — the overlay becomes transparent to mouse input so you can interact with the game underneath while still seeing the feed. Use `Shift+F2` (global hotkey) to toggle it back since in-app shortcuts won't fire in click-through mode.
+
+### Lock Mode
+
+Press `Ctrl+L` to lock the overlay position — prevents accidental drag/resize during combat.
 
 ## Why This Exists
 

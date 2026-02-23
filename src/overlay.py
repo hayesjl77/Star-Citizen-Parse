@@ -3,14 +3,18 @@ Star Citizen Parse — Transparent in-game overlay.
 Shows a live kill/death feed, session stats, and event log on top of the game.
 """
 
+import os
 import sys
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QLabel,
     QScrollArea, QFileDialog, QMenu, QSystemTrayIcon, QSlider, QLineEdit,
     QPushButton, QCheckBox, QDialog, QFormLayout, QDialogButtonBox,
-    QFrame,
+    QFrame, QToolTip,
 )
-from PyQt6.QtGui import QAction, QIcon, QFont, QColor, QPainter, QPainterPath, QCursor
+from PyQt6.QtGui import (
+    QAction, QIcon, QFont, QColor, QPainter, QPainterPath, QCursor,
+    QKeySequence, QShortcut,
+)
 from PyQt6.QtCore import Qt, QPoint, QSize, QTimer, pyqtSignal
 
 from src.config import Config
@@ -230,13 +234,16 @@ class OverlayWindow(QMainWindow):
         self.config = config
         self.events: list[GameEvent] = []
         self.stats = {"kills": 0, "deaths": 0, "pve": 0}
+        self._locked = False          # Lock prevents drag/resize
+        self._click_through = False   # Click-through passes input to game
 
         # ─── Window flags for true overlay ───
-        self.setWindowFlags(
+        self._base_flags = (
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.Tool  # Hides from taskbar
         )
+        self.setWindowFlags(self._base_flags)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setMinimumSize(300, 200)
         self.setGeometry(
@@ -270,6 +277,30 @@ class OverlayWindow(QMainWindow):
         self.stats_label = QLabel("K: 0  D: 0  PvE: 0")
         self.stats_label.setObjectName("stats_text")
         title_layout.addWidget(self.stats_label)
+
+        # Help button (shows keyboard shortcuts)
+        help_btn = QPushButton("?")
+        help_btn.setObjectName("title_btn")
+        help_btn.setFixedSize(24, 24)
+        help_btn.setToolTip("Keyboard Shortcuts")
+        help_btn.clicked.connect(self._show_help)
+        title_layout.addWidget(help_btn)
+
+        # Lock button (prevents accidental drag/resize)
+        self.lock_btn = QPushButton("🔓")
+        self.lock_btn.setObjectName("title_btn")
+        self.lock_btn.setFixedSize(24, 24)
+        self.lock_btn.setToolTip("Lock position (Ctrl+L)")
+        self.lock_btn.clicked.connect(self._toggle_lock)
+        title_layout.addWidget(self.lock_btn)
+
+        # Click-through toggle
+        self.passthru_btn = QPushButton("👆")
+        self.passthru_btn.setObjectName("title_btn")
+        self.passthru_btn.setFixedSize(24, 24)
+        self.passthru_btn.setToolTip("Click-through mode (Ctrl+P)")
+        self.passthru_btn.clicked.connect(self._toggle_click_through)
+        title_layout.addWidget(self.passthru_btn)
 
         # Settings gear button
         settings_btn = QPushButton("⚙")
@@ -332,7 +363,7 @@ class OverlayWindow(QMainWindow):
         self._resize_edge = ""
         self._resize_start_geom = None
         self._resize_start_pos = QPoint()
-        self._resize_margin = 6
+        self._resize_margin = 10  # Wide enough to grab during gameplay
 
         # ─── Log monitor ───
         self.monitor = LogMonitor(poll_interval_ms=500, parent=self)
@@ -340,7 +371,10 @@ class OverlayWindow(QMainWindow):
         self.monitor.file_reset.connect(self._on_file_reset)
         self.monitor.monitoring_started.connect(self._on_monitoring_started)
 
-        # ─── Global hotkey ───
+        # ─── In-app keyboard shortcuts (always work, no root needed) ───
+        self._setup_shortcuts()
+
+        # ─── Global hotkey (needs `keyboard` lib; root on Linux) ───
         self._setup_hotkey()
 
         # ─── Auto-detect or use saved path ───
@@ -430,14 +464,25 @@ class OverlayWindow(QMainWindow):
         """)
 
     def _setup_hotkey(self):
-        """Setup global hotkey for toggle visibility."""
+        """Setup global hotkey for toggle visibility.
+        Uses the `keyboard` library which needs root on Linux.
+        Falls back gracefully if unavailable."""
         try:
             import keyboard
             keyboard.add_hotkey(self.config.toggle_hotkey, self._toggle_visibility)
+            # Also register Shift+F2 globally to disable click-through
+            # (since in-app shortcuts don't work in click-through mode)
+            keyboard.add_hotkey("shift+f2", self._toggle_click_through)
+            print(f"[Overlay] Global hotkeys: {self.config.toggle_hotkey}=toggle, shift+f2=click-through")
         except ImportError:
-            print("[Overlay] 'keyboard' module not found — hotkey disabled")
+            print("[Overlay] 'keyboard' module not found — global hotkeys disabled")
+            print("[Overlay]   Install: pip install keyboard")
         except Exception as e:
-            print(f"[Overlay] Hotkey setup failed: {e}")
+            # On Linux without root, keyboard.add_hotkey raises
+            print(f"[Overlay] Global hotkey failed: {e}")
+            if "root" in str(e).lower() or "permission" in str(e).lower():
+                print("[Overlay]   On Linux, run with: sudo python main.py")
+                print("[Overlay]   Or use in-app shortcuts (Ctrl+key) instead")
 
     def _toggle_visibility(self):
         if self.isVisible():
@@ -445,6 +490,98 @@ class OverlayWindow(QMainWindow):
         else:
             self.show()
             self.raise_()
+
+    # ─── In-app Keyboard Shortcuts ─────────────────────────────────────────
+
+    def _setup_shortcuts(self):
+        """Register in-app keyboard shortcuts (no root required)."""
+        shortcuts = {
+            "Ctrl+,":     self.open_settings,           # Settings
+            "Ctrl+O":     self._choose_file,             # Open log file
+            "Ctrl+L":     self._toggle_lock,             # Lock/unlock position
+            "Ctrl+P":     self._toggle_click_through,    # Click-through mode
+            "Ctrl+K":     self._on_file_reset,           # Clear feed
+            "Ctrl+R":     lambda: self.monitor.reprocess() if self.monitor.filepath else None,
+            "Ctrl+H":     self._show_help,               # Help overlay
+            "Ctrl+Up":    lambda: self._adjust_opacity(+0.05),
+            "Ctrl+Down":  lambda: self._adjust_opacity(-0.05),
+            "Ctrl+Shift+Up":   lambda: self._adjust_font(+1),
+            "Ctrl+Shift+Down": lambda: self._adjust_font(-1),
+            "Escape":     self.showMinimized,
+        }
+        for key_seq, callback in shortcuts.items():
+            shortcut = QShortcut(QKeySequence(key_seq), self)
+            shortcut.activated.connect(callback)
+
+    def _toggle_lock(self):
+        """Lock/unlock the overlay position to prevent accidental moves."""
+        self._locked = not self._locked
+        if self._locked:
+            self.lock_btn.setText("🔒")
+            self.lock_btn.setToolTip("Unlock position (Ctrl+L)")
+            self._add_system_message("🔒 Position locked")
+        else:
+            self.lock_btn.setText("🔓")
+            self.lock_btn.setToolTip("Lock position (Ctrl+L)")
+            self._add_system_message("🔓 Position unlocked")
+
+    def _toggle_click_through(self):
+        """Toggle click-through mode (mouse passes to game underneath)."""
+        self._click_through = not self._click_through
+        if self._click_through:
+            self.setWindowFlags(
+                self._base_flags | Qt.WindowType.WindowTransparentForInput
+            )
+            self.passthru_btn.setText("👻")
+            self.passthru_btn.setToolTip("Disable click-through (Ctrl+P)")
+            # Must re-show after changing flags
+            self.show()
+            self._add_system_message("👻 Click-through ON — use Shift+F1 to toggle back")
+        else:
+            self.setWindowFlags(self._base_flags)
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+            self.passthru_btn.setText("👆")
+            self.passthru_btn.setToolTip("Click-through mode (Ctrl+P)")
+            self.show()
+            self._add_system_message("👆 Click-through OFF")
+
+    def _adjust_opacity(self, delta: float):
+        """Quick-adjust opacity without opening settings."""
+        new_val = max(0.1, min(1.0, self.config.overlay.opacity + delta))
+        self.config.overlay.opacity = round(new_val, 2)
+        self.config.save()
+        self._apply_style()
+        pct = int(self.config.overlay.opacity * 100)
+        self.status_label.setText(f"  Opacity: {pct}%")
+
+    def _adjust_font(self, delta: int):
+        """Quick-adjust font size without opening settings."""
+        new_val = max(9, min(24, self.config.overlay.font_size + delta))
+        self.config.overlay.font_size = new_val
+        self.config.save()
+        self._apply_style()
+        self.status_label.setText(f"  Font: {new_val}px")
+
+    def _show_help(self):
+        """Show keyboard shortcuts help overlay."""
+        help_text = (
+            "╔══════════════════════════════════╗\n"
+            "║    SC PARSE — KEYBOARD SHORTCUTS  ║\n"
+            "╠══════════════════════════════════╣\n"
+            "║  Shift+F1      Toggle overlay    ║\n"
+            "║  Ctrl+,        Open settings     ║\n"
+            "║  Ctrl+O        Open log file     ║\n"
+            "║  Ctrl+L        Lock/unlock pos   ║\n"
+            "║  Ctrl+P        Click-through     ║\n"
+            "║  Ctrl+K        Clear feed        ║\n"
+            "║  Ctrl+R        Reprocess log     ║\n"
+            "║  Ctrl+↑/↓      Adjust opacity    ║\n"
+            "║  Ctrl+Shift+↑/↓ Adjust font     ║\n"
+            "║  Escape        Minimize          ║\n"
+            "║  Right-click   Context menu      ║\n"
+            "╚══════════════════════════════════╝"
+        )
+        self._add_system_message(help_text)
 
     def _auto_start(self):
         """Auto-detect log file or use saved path."""
@@ -483,6 +620,7 @@ class OverlayWindow(QMainWindow):
         player = self.config.player_name or "Unknown"
         self.status_label.setText(f"  📡 {short}/Game.log — Player: {player}")
         self.status_label.setStyleSheet("color: #44ff44; font-size: 10px; background: #0d0d1a80;")
+        self._add_system_message("Press Ctrl+H for keyboard shortcuts")
 
     def _on_file_reset(self):
         """Log file was reset (new game session)."""
@@ -622,7 +760,7 @@ class OverlayWindow(QMainWindow):
         """)
 
         # Open log file
-        open_action = menu.addAction("📂  Open Log File...")
+        open_action = menu.addAction("📂  Open Log File...          Ctrl+O")
         open_action.triggered.connect(self._choose_file)
 
         # Auto detect
@@ -630,18 +768,34 @@ class OverlayWindow(QMainWindow):
         detect_action.triggered.connect(self._auto_detect_log)
 
         # Reprocess
-        reprocess_action = menu.addAction("🔄  Reprocess Log")
+        reprocess_action = menu.addAction("🔄  Reprocess Log              Ctrl+R")
         reprocess_action.triggered.connect(self.monitor.reprocess)
 
         menu.addSeparator()
 
+        # Lock position
+        lock_text = "🔒  Unlock Position            Ctrl+L" if self._locked else "🔓  Lock Position               Ctrl+L"
+        lock_action = menu.addAction(lock_text)
+        lock_action.triggered.connect(self._toggle_lock)
+
+        # Click-through
+        ct_text = "👆  Disable Click-Through    Ctrl+P" if self._click_through else "👻  Click-Through Mode       Ctrl+P"
+        ct_action = menu.addAction(ct_text)
+        ct_action.triggered.connect(self._toggle_click_through)
+
+        menu.addSeparator()
+
         # Clear feed
-        clear_action = menu.addAction("🗑  Clear Feed")
+        clear_action = menu.addAction("🗑  Clear Feed                  Ctrl+K")
         clear_action.triggered.connect(self._on_file_reset)
 
         # Settings
-        settings_action = menu.addAction("⚙  Settings")
+        settings_action = menu.addAction("⚙  Settings                     Ctrl+,")
         settings_action.triggered.connect(self.open_settings)
+
+        # Help
+        help_action = menu.addAction("❓  Keyboard Shortcuts       Ctrl+H")
+        help_action.triggered.connect(self._show_help)
 
         menu.addSeparator()
 
@@ -689,6 +843,9 @@ class OverlayWindow(QMainWindow):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
+            if self._locked:
+                event.accept()
+                return
             edge = self._get_resize_edge(event.pos())
             if edge:
                 self._resizing = True
@@ -785,10 +942,6 @@ class OverlayWindow(QMainWindow):
         opacity_int = int(self.config.overlay.opacity * 255)
         painter.fillPath(path, QColor(10, 10, 20, opacity_int))
         painter.end()
-
-
-# Need os import for _auto_start
-import os
 
 
 # ─── Entry point ───────────────────────────────────────────────────────────
