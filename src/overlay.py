@@ -357,13 +357,7 @@ class OverlayWindow(QMainWindow):
         self._apply_style()
 
         # ─── Drag/resize state ───
-        self._drag_active = False
-        self._drag_pos = QPoint()
-        self._resizing = False
-        self._resize_edge = ""
-        self._resize_start_geom = None
-        self._resize_start_pos = QPoint()
-        self._resize_margin = 10  # Wide enough to grab during gameplay
+        self._resize_margin = 10  # pixels from edge to trigger resize
 
         # ─── Enable mouse tracking + event filter on ALL widgets recursively ───
         self.setMouseTracking(True)
@@ -917,79 +911,79 @@ class OverlayWindow(QMainWindow):
             self._update_stats()
 
     # ─── Window Dragging & Resizing ──────────────────────────────────────
+    # On Wayland, applications cannot freely position windows or intercept
+    # mouse moves during drag.  The correct approach is startSystemMove() /
+    # startSystemResize() which delegate the operation to the compositor.
+    # These also work fine on X11, so this is fully cross-platform.
 
     def eventFilter(self, obj, event):
-        """Intercept mouse press from child widgets to start drag/resize.
-        Once started, grabMouse() routes all subsequent events to self."""
-        etype = event.type()
-
-        if etype == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
-            # Let button clicks work normally
+        """Intercept left-click on child widgets → start native drag or resize."""
+        if (event.type() == QEvent.Type.MouseButtonPress
+                and event.button() == Qt.MouseButton.LeftButton):
             if isinstance(obj, QPushButton):
-                return False
+                return False          # let buttons work
             if self._locked:
                 return False
             win_pos = self.mapFromGlobal(event.globalPosition().toPoint())
             edge = self._get_resize_edge(win_pos)
             if edge:
-                self._resizing = True
-                self._resize_edge = edge
-                self._resize_start_geom = self.geometry()
-                self._resize_start_pos = event.globalPosition().toPoint()
+                self._start_native_resize(edge)
+                return True
             else:
-                self._drag_active = True
-                self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-            # Grab mouse so move/release come to self (the QMainWindow)
-            self.grabMouse()
-            return True
-
+                self._start_native_move()
+                return True
         return super().eventFilter(obj, event)
 
-    def mouseMoveEvent(self, event):
-        """Handle drag/resize moves (mouse is grabbed to self)."""
-        if self._resizing:
-            delta = event.globalPosition().toPoint() - self._resize_start_pos
-            geom = self._resize_start_geom.__class__(self._resize_start_geom)
-            if "R" in self._resize_edge:
-                geom.setRight(geom.right() + delta.x())
-            if "B" in self._resize_edge:
-                geom.setBottom(geom.bottom() + delta.y())
-            if "L" in self._resize_edge:
-                geom.setLeft(geom.left() + delta.x())
-            if "T" in self._resize_edge:
-                geom.setTop(geom.top() + delta.y())
-            if geom.width() >= self.minimumWidth() and geom.height() >= self.minimumHeight():
-                self.setGeometry(geom)
-        elif self._drag_active:
-            self.move(event.globalPosition().toPoint() - self._drag_pos)
-        else:
-            # Show resize cursors at edges
-            win_pos = event.pos()
+    def mousePressEvent(self, event):
+        """Fallback for clicks landing directly on QMainWindow."""
+        if event.button() == Qt.MouseButton.LeftButton and not self._locked:
+            win_pos = self.mapFromGlobal(event.globalPosition().toPoint())
             edge = self._get_resize_edge(win_pos)
-            if edge and not self._locked:
-                if edge in ("RB", "LT"):
-                    self.setCursor(Qt.CursorShape.SizeFDiagCursor)
-                elif edge in ("RT", "LB"):
-                    self.setCursor(Qt.CursorShape.SizeBDiagCursor)
-                elif "R" in edge or "L" in edge:
-                    self.setCursor(Qt.CursorShape.SizeHorCursor)
-                else:
-                    self.setCursor(Qt.CursorShape.SizeVerCursor)
+            if edge:
+                self._start_native_resize(edge)
             else:
-                self.unsetCursor()
+                self._start_native_move()
 
-    def mouseReleaseEvent(self, event):
-        """Finish drag/resize and release the mouse grab."""
-        if self._drag_active or self._resizing:
-            g = self.geometry()
-            self.config.overlay.x = g.x()
-            self.config.overlay.y = g.y()
-            self.config.overlay.width = g.width()
-            self.config.overlay.height = g.height()
-            self.config.save()
-        self._drag_active = False
-        self._resizing = False
-        self.releaseMouse()
+    def _start_native_move(self):
+        """Ask the compositor to begin a window move."""
+        handle = self.windowHandle()
+        if handle:
+            handle.startSystemMove()
+
+    def _start_native_resize(self, edge_str):
+        """Ask the compositor to begin a window resize on the given edge(s)."""
+        from PyQt6.QtCore import Qt as _Qt
+        edge_map = {
+            "L":  _Qt.Edge.LeftEdge,
+            "R":  _Qt.Edge.RightEdge,
+            "T":  _Qt.Edge.TopEdge,
+            "B":  _Qt.Edge.BottomEdge,
+            "LT": _Qt.Edge.LeftEdge | _Qt.Edge.TopEdge,
+            "LB": _Qt.Edge.LeftEdge | _Qt.Edge.BottomEdge,
+            "RT": _Qt.Edge.RightEdge | _Qt.Edge.TopEdge,
+            "RB": _Qt.Edge.RightEdge | _Qt.Edge.BottomEdge,
+        }
+        qt_edges = edge_map.get(edge_str)
+        if qt_edges:
+            handle = self.windowHandle()
+            if handle:
+                handle.startSystemResize(qt_edges)
+
+    def moveEvent(self, event):
+        """Save position after the compositor finishes moving us."""
+        super().moveEvent(event)
+        g = self.geometry()
+        self.config.overlay.x = g.x()
+        self.config.overlay.y = g.y()
+        self.config.save()
+
+    def resizeEvent(self, event):
+        """Save size after the compositor finishes resizing us."""
+        super().resizeEvent(event)
+        g = self.geometry()
+        self.config.overlay.width = g.width()
+        self.config.overlay.height = g.height()
+        self.config.save()
 
     def _get_resize_edge(self, pos) -> str:
         m = self._resize_margin
@@ -1001,8 +995,15 @@ class OverlayWindow(QMainWindow):
             edge += "L"
         if pos.y() >= r.height() - m:
             edge += "B"
-        elif pos.y() <= m:
-            edge += "T"
+        elif pos.y() <= m and pos.y() >= 0:
+            # Only allow top-edge resize outside the title bar (32px).
+            # Without this guard every title-bar click triggers resize
+            # instead of drag.
+            if pos.y() <= m and pos.x() <= m:
+                edge += "T"       # top-left corner only
+            elif pos.y() <= m and pos.x() >= r.width() - m:
+                edge += "T"       # top-right corner only
+            # Otherwise skip "T" — user is clicking in the title bar → drag
         return edge
 
     def quit_app(self):
