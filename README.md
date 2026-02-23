@@ -108,21 +108,21 @@ Settings are saved to `sc_parse_config.json` automatically.
 
 All in-app shortcuts work without root access. Global hotkeys (Shift+F1/F2) require the `keyboard` module and root on Linux.
 
-| Shortcut | Action |
-|----------|--------|
-| `Shift+F1` | Toggle overlay visibility (global) |
-| `Shift+F2` | Toggle click-through mode (global) |
-| `Ctrl+,` | Open settings dialog |
-| `Ctrl+O` | Open log file |
-| `Ctrl+L` | Lock/unlock overlay position |
-| `Ctrl+P` | Toggle click-through mode |
-| `Ctrl+K` | Clear feed |
-| `Ctrl+R` | Reprocess log from beginning |
-| `Ctrl+H` | Show keyboard shortcuts |
-| `Ctrl+↑/↓` | Adjust opacity |
-| `Ctrl+Shift+↑/↓` | Adjust font size |
-| `Escape` | Minimize overlay |
-| Right-click | Context menu |
+| Shortcut         | Action                             |
+| ---------------- | ---------------------------------- |
+| `Shift+F1`       | Toggle overlay visibility (global) |
+| `Shift+F2`       | Toggle click-through mode (global) |
+| `Ctrl+,`         | Open settings dialog               |
+| `Ctrl+O`         | Open log file                      |
+| `Ctrl+L`         | Lock/unlock overlay position       |
+| `Ctrl+P`         | Toggle click-through mode          |
+| `Ctrl+K`         | Clear feed                         |
+| `Ctrl+R`         | Reprocess log from beginning       |
+| `Ctrl+H`         | Show keyboard shortcuts            |
+| `Ctrl+↑/↓`       | Adjust opacity                     |
+| `Ctrl+Shift+↑/↓` | Adjust font size                   |
+| `Escape`         | Minimize overlay                   |
+| Right-click      | Context menu                       |
 
 ### Click-Through Mode
 

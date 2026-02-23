@@ -15,7 +15,7 @@ from PyQt6.QtGui import (
     QAction, QIcon, QFont, QColor, QPainter, QPainterPath, QCursor,
     QKeySequence, QShortcut,
 )
-from PyQt6.QtCore import Qt, QPoint, QSize, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt, QPoint, QSize, QTimer, QEvent, pyqtSignal
 
 from src.config import Config
 from src.event_parser import EventType, GameEvent, parse_line
@@ -364,6 +364,21 @@ class OverlayWindow(QMainWindow):
         self._resize_start_geom = None
         self._resize_start_pos = QPoint()
         self._resize_margin = 10  # Wide enough to grab during gameplay
+
+        # ─── Enable mouse tracking on all widgets so drag/resize works ───
+        self.setMouseTracking(True)
+        central.setMouseTracking(True)
+        title_bar.setMouseTracking(True)
+        self.feed_scroll.setMouseTracking(True)
+        self.feed_container.setMouseTracking(True)
+        grip.setMouseTracking(True)
+        # Install event filter to intercept mouse events from child widgets
+        central.installEventFilter(self)
+        title_bar.installEventFilter(self)
+        self.feed_scroll.installEventFilter(self)
+        self.feed_scroll.viewport().installEventFilter(self)
+        self.feed_container.installEventFilter(self)
+        grip.installEventFilter(self)
 
         # ─── Log monitor ───
         self.monitor = LogMonitor(poll_interval_ms=500, parent=self)
@@ -839,69 +854,81 @@ class OverlayWindow(QMainWindow):
             self._apply_style()
             self._update_stats()
 
-    # ─── Window Dragging & Resizing ────────────────────────────────────────
+    # ─── Window Dragging & Resizing (via event filter) ──────────────────────
 
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
+    def eventFilter(self, obj, event):
+        """Intercept mouse events from child widgets for drag and resize."""
+        etype = event.type()
+
+        if etype == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
             if self._locked:
-                event.accept()
-                return
-            edge = self._get_resize_edge(event.pos())
+                return False  # Let it pass through normally
+            # Map position to window coordinates
+            win_pos = self.mapFromGlobal(event.globalPosition().toPoint())
+            edge = self._get_resize_edge(win_pos)
             if edge:
                 self._resizing = True
                 self._resize_edge = edge
                 self._resize_start_geom = self.geometry()
                 self._resize_start_pos = event.globalPosition().toPoint()
+                return True  # Consumed
             else:
                 self._drag_active = True
                 self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-            event.accept()
+                return True  # Consumed
 
-    def mouseMoveEvent(self, event):
-        if self._resizing:
-            delta = event.globalPosition().toPoint() - self._resize_start_pos
-            geom = self._resize_start_geom.__class__(self._resize_start_geom)
+        if etype == QEvent.Type.MouseMove:
+            if self._resizing:
+                delta = event.globalPosition().toPoint() - self._resize_start_pos
+                geom = self._resize_start_geom.__class__(self._resize_start_geom)
 
-            if "R" in self._resize_edge:
-                geom.setRight(geom.right() + delta.x())
-            if "B" in self._resize_edge:
-                geom.setBottom(geom.bottom() + delta.y())
-            if "L" in self._resize_edge:
-                geom.setLeft(geom.left() + delta.x())
-            if "T" in self._resize_edge:
-                geom.setTop(geom.top() + delta.y())
+                if "R" in self._resize_edge:
+                    geom.setRight(geom.right() + delta.x())
+                if "B" in self._resize_edge:
+                    geom.setBottom(geom.bottom() + delta.y())
+                if "L" in self._resize_edge:
+                    geom.setLeft(geom.left() + delta.x())
+                if "T" in self._resize_edge:
+                    geom.setTop(geom.top() + delta.y())
 
-            if geom.width() >= self.minimumWidth() and geom.height() >= self.minimumHeight():
-                self.setGeometry(geom)
-        elif self._drag_active:
-            self.move(event.globalPosition().toPoint() - self._drag_pos)
-        else:
-            edge = self._get_resize_edge(event.pos())
-            if edge:
-                if edge in ("RB", "LT"):
-                    self.setCursor(Qt.CursorShape.SizeFDiagCursor)
-                elif edge in ("RT", "LB"):
-                    self.setCursor(Qt.CursorShape.SizeBDiagCursor)
-                elif "R" in edge or "L" in edge:
-                    self.setCursor(Qt.CursorShape.SizeHorCursor)
-                else:
-                    self.setCursor(Qt.CursorShape.SizeVerCursor)
+                if geom.width() >= self.minimumWidth() and geom.height() >= self.minimumHeight():
+                    self.setGeometry(geom)
+                return True
+            elif self._drag_active:
+                self.move(event.globalPosition().toPoint() - self._drag_pos)
+                return True
             else:
-                self.unsetCursor()
+                # Show resize cursors at edges
+                win_pos = self.mapFromGlobal(event.globalPosition().toPoint())
+                edge = self._get_resize_edge(win_pos)
+                if edge and not self._locked:
+                    if edge in ("RB", "LT"):
+                        self.setCursor(Qt.CursorShape.SizeFDiagCursor)
+                    elif edge in ("RT", "LB"):
+                        self.setCursor(Qt.CursorShape.SizeBDiagCursor)
+                    elif "R" in edge or "L" in edge:
+                        self.setCursor(Qt.CursorShape.SizeHorCursor)
+                    else:
+                        self.setCursor(Qt.CursorShape.SizeVerCursor)
+                else:
+                    self.unsetCursor()
+                return False  # Don't consume hover events
 
-    def mouseReleaseEvent(self, event):
-        if self._drag_active or self._resizing:
-            # Save position/size
-            g = self.geometry()
-            self.config.overlay.x = g.x()
-            self.config.overlay.y = g.y()
-            self.config.overlay.width = g.width()
-            self.config.overlay.height = g.height()
-            self.config.save()
+        if etype == QEvent.Type.MouseButtonRelease:
+            if self._drag_active or self._resizing:
+                # Save position/size
+                g = self.geometry()
+                self.config.overlay.x = g.x()
+                self.config.overlay.y = g.y()
+                self.config.overlay.width = g.width()
+                self.config.overlay.height = g.height()
+                self.config.save()
 
-        self._drag_active = False
-        self._resizing = False
-        event.accept()
+                self._drag_active = False
+                self._resizing = False
+                return True
+
+        return super().eventFilter(obj, event)
 
     def _get_resize_edge(self, pos) -> str:
         m = self._resize_margin
