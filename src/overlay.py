@@ -660,7 +660,7 @@ class OverlayWindow(QMainWindow):
         """Show the Squig-AI About dialog."""
         about = QDialog(self)
         about.setWindowTitle("About Squig-AI SC Parse")
-        about.setFixedSize(420, 380)
+        about.setMinimumWidth(480)
         about.setStyleSheet("""
             QDialog {
                 background: #0d0d1a;
@@ -670,87 +670,95 @@ class OverlayWindow(QMainWindow):
             QLabel { color: #e0e0e0; }
             QPushButton {
                 background: #8b5cf6; color: white; border: none;
-                border-radius: 4px; padding: 6px 20px; font-weight: bold;
+                border-radius: 4px; padding: 8px 24px; font-weight: bold;
+                font-size: 13px;
             }
             QPushButton:hover { background: #7c3aed; }
         """)
 
         layout = QVBoxLayout(about)
-        layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(8)
+        layout.setContentsMargins(32, 24, 32, 24)
+        layout.setSpacing(6)
 
         # Logo / brand
         brand = QLabel("SQUIG-AI")
         brand.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        brand.setStyleSheet("font-size: 28px; font-weight: bold; color: #8b5cf6; letter-spacing: 4px;")
+        brand.setStyleSheet("font-size: 32px; font-weight: bold; color: #8b5cf6; letter-spacing: 6px;")
         layout.addWidget(brand)
 
         app_name = QLabel("SC Parse")
         app_name.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        app_name.setStyleSheet("font-size: 16px; color: #a78bfa; margin-bottom: 6px;")
+        app_name.setStyleSheet("font-size: 18px; color: #a78bfa; margin-bottom: 4px;")
         layout.addWidget(app_name)
 
         # Version
         version = QLabel("v2.0.0")
         version.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        version.setStyleSheet("font-size: 11px; color: #666;")
+        version.setStyleSheet("font-size: 12px; color: #666;")
         layout.addWidget(version)
 
         # Separator
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet("background: #333; max-height: 1px; margin: 8px 0;")
+        sep.setStyleSheet("background: #333; max-height: 1px; margin: 10px 0;")
         layout.addWidget(sep)
 
         # Description
         desc = QLabel(
-            "The only true transparent in-game overlay for\n"
-            "Star Citizen combat events.\n\n"
-            "Real-time kill feed, session stats, PvP/PvE detection,\n"
-            "auto-detect, and 12 keyboard shortcuts — all in a\n"
-            "sleek overlay that sits on top of your game."
+            "The only true transparent in-game overlay for "
+            "Star Citizen combat events."
         )
         desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
         desc.setWordWrap(True)
-        desc.setStyleSheet("font-size: 12px; line-height: 1.4; color: #ccc;")
+        desc.setStyleSheet("font-size: 13px; color: #ccc; padding: 0 12px;")
         layout.addWidget(desc)
 
-        layout.addSpacing(6)
+        layout.addSpacing(4)
+
+        desc2 = QLabel(
+            "Real-time kill feed, session stats, PvP/PvE detection, "
+            "auto-detect, and 12 keyboard shortcuts — all in a "
+            "sleek overlay that sits on top of your game."
+        )
+        desc2.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        desc2.setWordWrap(True)
+        desc2.setStyleSheet("font-size: 12px; color: #aaa; padding: 0 12px;")
+        layout.addWidget(desc2)
+
+        layout.addSpacing(10)
 
         # Website link
-        site = QLabel('<a href="https://squig-ai.com" style="color: #8b5cf6; text-decoration: none;">squig-ai.com</a>')
+        site = QLabel('<a href="https://squig-ai.com" style="color: #8b5cf6; text-decoration: none; font-size: 14px;">squig-ai.com</a>')
         site.setAlignment(Qt.AlignmentFlag.AlignCenter)
         site.setOpenExternalLinks(True)
-        site.setStyleSheet("font-size: 13px;")
         layout.addWidget(site)
 
         # GitHub link
-        gh = QLabel('<a href="https://github.com/hayesjl77/Star-Citizen-Parse" style="color: #8b5cf6; text-decoration: none;">GitHub: hayesjl77/Star-Citizen-Parse</a>')
+        gh = QLabel('<a href="https://github.com/hayesjl77/Star-Citizen-Parse" style="color: #a78bfa; text-decoration: none; font-size: 12px;">GitHub: hayesjl77/Star-Citizen-Parse</a>')
         gh.setAlignment(Qt.AlignmentFlag.AlignCenter)
         gh.setOpenExternalLinks(True)
-        gh.setStyleSheet("font-size: 11px;")
         layout.addWidget(gh)
 
-        layout.addSpacing(4)
+        layout.addSpacing(8)
 
         # Tagline
         tagline = QLabel("Built by gamers, for gamers.")
         tagline.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        tagline.setStyleSheet("font-size: 11px; color: #8b5cf6; font-style: italic;")
+        tagline.setStyleSheet("font-size: 12px; color: #8b5cf6; font-style: italic;")
         layout.addWidget(tagline)
 
         # Copyright
         copy_lbl = QLabel("© 2026 Squig-AI — MIT License")
         copy_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        copy_lbl.setStyleSheet("font-size: 10px; color: #555;")
+        copy_lbl.setStyleSheet("font-size: 11px; color: #555;")
         layout.addWidget(copy_lbl)
 
-        layout.addSpacing(8)
+        layout.addSpacing(12)
 
         # Close button
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(about.accept)
-        close_btn.setFixedWidth(100)
+        close_btn.setFixedWidth(120)
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
         btn_layout.addWidget(close_btn)
