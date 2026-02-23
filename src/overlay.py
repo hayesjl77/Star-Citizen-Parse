@@ -365,20 +365,12 @@ class OverlayWindow(QMainWindow):
         self._resize_start_pos = QPoint()
         self._resize_margin = 10  # Wide enough to grab during gameplay
 
-        # ─── Enable mouse tracking on all widgets so drag/resize works ───
+        # ─── Enable mouse tracking + event filter on ALL widgets recursively ───
         self.setMouseTracking(True)
-        central.setMouseTracking(True)
-        title_bar.setMouseTracking(True)
-        self.feed_scroll.setMouseTracking(True)
-        self.feed_container.setMouseTracking(True)
-        grip.setMouseTracking(True)
-        # Install event filter to intercept mouse events from child widgets
-        central.installEventFilter(self)
-        title_bar.installEventFilter(self)
-        self.feed_scroll.installEventFilter(self)
-        self.feed_scroll.viewport().installEventFilter(self)
-        self.feed_container.installEventFilter(self)
-        grip.installEventFilter(self)
+        self._install_event_filter_recursive(central)
+
+        # ─── System tray icon (escape hatch for click-through mode) ───
+        self._setup_tray_icon()
 
         # ─── Log monitor ───
         self.monitor = LogMonitor(poll_interval_ms=500, parent=self)
@@ -478,6 +470,73 @@ class OverlayWindow(QMainWindow):
             }}
         """)
 
+    def _install_event_filter_recursive(self, widget):
+        """Install event filter and mouse tracking on widget and ALL children."""
+        widget.setMouseTracking(True)
+        widget.installEventFilter(self)
+        for child in widget.findChildren(QWidget):
+            child.setMouseTracking(True)
+            child.installEventFilter(self)
+
+    def _setup_tray_icon(self):
+        """Create a system tray icon as escape hatch for click-through mode.
+        When the overlay is in ghost mode, the tray icon is the ONLY way
+        to interact with the app (since all input passes through)."""
+        self.tray_icon = QSystemTrayIcon(self)
+        # Create a simple colored icon programmatically
+        from PyQt6.QtGui import QPixmap
+        pixmap = QPixmap(32, 32)
+        pixmap.fill(QColor(139, 92, 246))  # Purple
+        painter = QPainter(pixmap)
+        painter.setPen(QColor(255, 255, 255))
+        painter.setFont(QFont("sans-serif", 16, QFont.Weight.Bold))
+        painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, "S")
+        painter.end()
+        self.tray_icon.setIcon(QIcon(pixmap))
+        self.tray_icon.setToolTip("SC Parse — Right-click to unghost")
+
+        tray_menu = QMenu()
+        tray_menu.setStyleSheet("""
+            QMenu { background-color: #1a1a2e; color: #cccccc; border: 1px solid #333; padding: 4px; }
+            QMenu::item { padding: 6px 16px; }
+            QMenu::item:selected { background: #8b5cf630; color: white; }
+        """)
+
+        unghost_action = tray_menu.addAction("👆 Disable Click-Through")
+        unghost_action.triggered.connect(self._force_unghost)
+
+        show_action = tray_menu.addAction("👁 Show Overlay")
+        show_action.triggered.connect(lambda: (self.show(), self.raise_()))
+
+        settings_action = tray_menu.addAction("⚙ Settings")
+        settings_action.triggered.connect(self.open_settings)
+
+        tray_menu.addSeparator()
+        quit_action = tray_menu.addAction("✕ Quit")
+        quit_action.triggered.connect(self.quit_app)
+
+        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.activated.connect(self._tray_activated)
+        self.tray_icon.show()
+
+    def _tray_activated(self, reason):
+        """Left-click on tray icon: unghost and show."""
+        if reason == QSystemTrayIcon.ActivationReason.Trigger:
+            self._force_unghost()
+            self.show()
+            self.raise_()
+
+    def _force_unghost(self):
+        """Unconditionally disable click-through mode."""
+        if self._click_through:
+            self._click_through = False
+            self.setWindowFlags(self._base_flags)
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+            self.passthru_btn.setText("👆")
+            self.passthru_btn.setToolTip("Click-through mode (Ctrl+P)")
+            self.show()
+            self._add_system_message("👆 Click-through OFF (via tray icon)")
+
     def _setup_hotkey(self):
         """Setup global hotkey for toggle visibility.
         Uses the `keyboard` library which needs root on Linux.
@@ -551,14 +610,17 @@ class OverlayWindow(QMainWindow):
             self.passthru_btn.setToolTip("Disable click-through (Ctrl+P)")
             # Must re-show after changing flags
             self.show()
-            self._add_system_message("👻 Click-through ON — use Shift+F1 to toggle back")
+            self._add_system_message("👻 Click-through ON")
+            self._add_system_message("   Click the  S  tray icon or right-click it to unghost")
+            # Flash the tray icon so user knows where to find it
+            self.tray_icon.showMessage(
+                "SC Parse — Ghost Mode",
+                "Click this tray icon or right-click → Disable Click-Through to get control back.",
+                QSystemTrayIcon.MessageIcon.Information,
+                5000,
+            )
         else:
-            self.setWindowFlags(self._base_flags)
-            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-            self.passthru_btn.setText("👆")
-            self.passthru_btn.setToolTip("Click-through mode (Ctrl+P)")
-            self.show()
-            self._add_system_message("👆 Click-through OFF")
+            self._force_unghost()
 
     def _adjust_opacity(self, delta: float):
         """Quick-adjust opacity without opening settings."""
@@ -857,10 +919,14 @@ class OverlayWindow(QMainWindow):
     # ─── Window Dragging & Resizing (via event filter) ──────────────────────
 
     def eventFilter(self, obj, event):
-        """Intercept mouse events from child widgets for drag and resize."""
+        """Intercept mouse events from child widgets for drag and resize.
+        Buttons (QPushButton) get their clicks passed through so they still work."""
         etype = event.type()
 
         if etype == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
+            # Let button clicks work normally
+            if isinstance(obj, QPushButton):
+                return False
             if self._locked:
                 return False  # Let it pass through normally
             # Map position to window coordinates
@@ -947,6 +1013,8 @@ class OverlayWindow(QMainWindow):
     def quit_app(self):
         """Clean shutdown."""
         self.monitor.stop()
+        if hasattr(self, 'tray_icon'):
+            self.tray_icon.hide()
         try:
             import keyboard
             keyboard.unhook_all()
