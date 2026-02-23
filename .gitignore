@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+.mypy_cache/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+sc_parse_config.json
+.venv/
+venv/
+.env
